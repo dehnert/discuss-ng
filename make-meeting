@@ -1,0 +1,53 @@
+#!/usr/bin/python
+
+import argparse
+import subprocess
+import sys
+
+import discuss
+import discuss.rpc
+import discuss.constants
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Create discuss meeting")
+    parser.add_argument('--server', help='remote discuss server to use [If unset, the local backend will be used. Setting this option also disables setting up the mail feed.]')
+    parser.add_argument('--public', type=bool, help='should the meeting be public?', default=True)
+    parser.add_argument('--longname', help='long name of meeting (defaults to the short name)')
+    parser.add_argument('--path', help='path to the meeting to be created (default is based on the short name)')
+    parser.add_argument('name', help='short name of meeting')
+
+    # Other fields accepted by mkds:
+    # - additional users to put on the ACL (with aorsw)
+    # - initial transaction
+    # - announce meeting
+
+    args = parser.parse_args()
+    if not args.longname:
+        args.longname = args.name
+    if not args.path:
+        args.path = "/var/spool/discuss/%s" % (args.name, )
+    return args
+
+def make_mailfeed(args):
+    line_tmpl = '%(name)s-mtg: "|/usr/bin/dsmail -d -s 20 %(path)s"\n'
+    line = line_tmpl % vars(args)
+    with open('/var/spool/discuss/control/aliases', 'a') as aliases:
+        aliases.write(line)
+    subprocess.check_call(['/usr/sbin/postalias', 'aliases'], cwd='/var/spool/discuss/control/')
+
+def make_meeting(args):
+    if args.server:
+        rpc = discuss.rpc.RPCClient
+    else:
+        rpc = discuss.rpc.RPCLocalClient
+    cl = discuss.Client(args.server, RPCClient=rpc)
+    error = cl.create_mtg(args.path, args.longname, args.public)
+    if error:
+        print error, discuss.constants.errors.get(error, "unknown code")
+    else:
+        make_mailfeed(args)
+        print "Success!"
+
+if __name__ == '__main__':
+    args = parse_args()
+    make_meeting(args)
