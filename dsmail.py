@@ -2,6 +2,7 @@
 
 import argparse
 import email.parser
+import email.utils
 import mailbox
 import re
 import sys
@@ -72,8 +73,12 @@ def list_compare(field_name, res):
     return any([r.match(field_name) for r in res])
 
 def extract_full_name(name):
-    # XXX: do the appropriate parsing
-    return name
+    real, addr = email.utils.parseaddr(name)
+    if real:
+        ret = real
+    else:
+        ret = addr
+    return ret.strip()
 
 def process_email(meeting, message, keep_header, subject_match):
     subject = None
